@@ -29,7 +29,7 @@ Speed up process of learning Chinese using popular website holding numerous exam
   
 3. After searching for a word you will see prompt:
    - Add your current character or wordlist. It will be parsed to set.
-   - ![Prompt](https://github.com/mcodelook/purple-chinese-highlighter/blob/prompt.png?raw=true)
+   - ![Prompt](https://github.com/mcodelook/purple-chinese-highlighter/blob/main/blob/Prompt.png?raw=true)
   
 4. Have fun learning Chinese!
-   - ![Example](https://github.com/mcodelook/purple-chinese-highlighter/blob/example.png?raw=true)
+   - ![Example](https://github.com/mcodelook/purple-chinese-highlighter/blob/main/blob/Example.png?raw=true)
