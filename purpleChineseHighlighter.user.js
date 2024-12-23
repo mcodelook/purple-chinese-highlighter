@@ -121,9 +121,10 @@ class SentencePanel extends UIComponent {
         })
     }
 
-    updateSentences(sentences) {
+    updateSentences(sentencesSet) {
         this.element.innerHTML = ''
-        if (sentences.length === 0) {
+
+        if (sentencesSet.size === 0) {
             this.element.textContent = 'No buildable sentences found'
             return
         }
@@ -134,14 +135,14 @@ class SentencePanel extends UIComponent {
             padding: '0'
         })
 
-        sentences.forEach(sentence => {
+        sentencesSet.forEach(sentence => {
             const item = document.createElement('li')
             Object.assign(item.style, {
                 marginBottom: '8px',
                 padding: '4px',
                 borderBottom: '1px solid #eee'
             })
-            item.textContent = sentence.characters
+            item.textContent = sentence
             list.appendChild(item)
         })
 
@@ -358,15 +359,11 @@ class UIManager {
     }
 
     updateBuildableSentences(sentences) {
-        if (this.sentencePanel) {
-            this.sentencePanel.updateSentences(sentences)
-        }
+        this.sentencePanel.updateSentences(sentences)
     }
 
     updateSentenceCount(count) {
-        if (this.infoPanel) {
-            this.infoPanel.updateText(`Found (${count}) sentences`)
-        }
+        this.infoPanel.updateText(`Found (${count}) sentences`)
     }
 
     updateFooter(minValue, maxValue) {
@@ -452,8 +449,11 @@ class PurpleCultureApp {
         const buildableSentences = this.sentences
             .filter(s => s.isConstructibleFrom(characterSet))
 
-        this.uiManager.updateSentenceCount(buildableSentences.length)
-        this.uiManager.updateBuildableSentences(buildableSentences)
+
+        const buildableSentencesSet = new Set(buildableSentences.map(s => s.characters))
+
+        this.uiManager.updateSentenceCount(buildableSentencesSet.size)
+        this.uiManager.updateBuildableSentences(buildableSentencesSet)
     }
 
     updateDisplay() {
