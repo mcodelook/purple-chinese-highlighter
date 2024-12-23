@@ -129,14 +129,18 @@ class SentencePanel extends UIComponent {
         }
 
         const list = document.createElement('ul')
-        list.style.listStyle = 'none'
-        list.style.padding = '0'
+        Object.assign(list.style, {
+            listStyle: 'none',
+            padding: '0'
+        })
 
         sentences.forEach(sentence => {
             const item = document.createElement('li')
-            item.style.marginBottom = '8px'
-            item.style.padding = '4px'
-            item.style.borderBottom = '1px solid #eee'
+            Object.assign(item.style, {
+                marginBottom: '8px',
+                padding: '4px',
+                borderBottom: '1px solid #eee'
+            })
             item.textContent = sentence.characters
             list.appendChild(item)
         })
@@ -216,18 +220,15 @@ class SentenceHighlighter {
 
 // Services
 class PageLoader {
-    constructor(pageState, onPageLoaded) {
+    constructor(pageState) {
         this.pageState = pageState
-        this.onPageLoaded = onPageLoaded
     }
 
-    async loadPages(currentWord) {
+    async loadPages(currentWord, handlePageLoaded) {
         try {
             for (let i = 0; i < CONFIG.LOAD_PAGES_COUNT; i++) {
                 await this.loadSentencesAndProcess(currentWord)
-                if (this.onPageLoaded) {
-                    this.onPageLoaded()
-                }
+                handlePageLoaded()
                 await this.delay(CONFIG.REQUEST_DELAY_MS)
             }
         } catch (error) {
@@ -379,17 +380,14 @@ class UIManager {
 
 // Main Application
 class PurpleCultureApp {
-    constructor() {
-        this.pageState = new PageState(URLUtils.getPageNumber())
-        this.pageLoader = new PageLoader(
-            this.pageState,
-            () => this.handlePageLoaded()
-        )
-        this.uiManager = new UIManager()
-        this.sentenceParser = new SentenceParser()
-        this.sentenceHighlighter = new SentenceHighlighter()
+    constructor(pageState, pageLoader, uiManager, sentenceParser, sentenceHighlighter, currentWord) {
+        this.pageState = pageState
+        this.pageLoader = pageLoader
+        this.uiManager = uiManager
+        this.sentenceParser = sentenceParser
+        this.sentenceHighlighter = sentenceHighlighter
+        this.currentWord = currentWord
 
-        this.currentWord = URLUtils.getSearchWord()
         this.userCharacters = GM_getValue('rawData')
         this.sentences = []
     }
@@ -404,21 +402,23 @@ class PurpleCultureApp {
         await this.loadAndProcessPages()
     }
 
-    handlePageLoaded() {
+    handlePageLoaded = () => {
         this.processSentences()
         this.updateDisplay()
     }
 
     async ensureUserData() {
-        if (!this.userCharacters) {
-            const userInput = prompt('Paste known characters:')
-            if (userInput) {
-                GM_setValue('rawData', userInput)
-                this.userCharacters = userInput
-                return true
-            }
+        if (this.userCharacters) {
+            return true
+        }
+
+        const userInput = prompt('Paste known characters:')
+        if (!userInput) {
             return false
         }
+
+        GM_setValue('rawData', userInput)
+        this.userCharacters = userInput
         return true
     }
 
@@ -429,7 +429,7 @@ class PurpleCultureApp {
     async loadAndProcessPages() {
         this.handlePageLoaded()
 
-        await this.pageLoader.loadPages(this.currentWord)
+        await this.pageLoader.loadPages(this.currentWord, this.handlePageLoaded)
     }
 
     processSentences() {
@@ -485,7 +485,13 @@ class PageState {
 
 // Initialize application
 document.addEventListener('DOMContentLoaded', () => {
-    const app = new PurpleCultureApp()
+    const pageState = new PageState(URLUtils.getPageNumber())
+    const pageLoader = new PageLoader(pageState)
+    const uiManager = new UIManager()
+    const sentenceParser = new SentenceParser()
+    const sentenceHighlighter = new SentenceHighlighter()
+    const currentWord = URLUtils.getSearchWord()
+    const app = new PurpleCultureApp(pageState, pageLoader, uiManager, sentenceParser, sentenceHighlighter, currentWord)
     app.initialize().catch(error => {
         console.error('Application failed to initialize:', error)
     })
