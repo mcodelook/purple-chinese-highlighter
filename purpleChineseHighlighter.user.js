@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PurpleCulture Sentences Highlighter
 // @namespace    http://tampermonkey.net/
-// @version      2024-12-22
+// @version      2025-02-05
 // @description  Find and highlight Chinese sentences based on character sets
 // @author       https://github.com/mcodelook
 // @match        https://www.purpleculture.net/sample_sentences/*
@@ -67,6 +67,62 @@ class UIComponent {
     }
 }
 
+// Main Container Panel
+class ControlPanel extends UIComponent {
+    constructor() {
+        const div = document.createElement('div')
+        super(div)
+        this.isOpen = true
+        this.configureContainer()
+        this.createToggleButton()
+    }
+
+    configureContainer() {
+        Object.assign(this.element.style, {
+            position: 'fixed',
+            top: '10px',
+            right: '10px',
+            zIndex: '9999',
+            background: 'white',
+            border: '1px solid #ccc',
+            borderRadius: '4px',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+            padding: '8px'
+        })
+    }
+
+    createToggleButton() {
+        const toggle = document.createElement('button')
+        Object.assign(toggle.style, {
+            alignSelf: 'flex-end',
+            padding: '4px',
+            cursor: 'pointer'
+        })
+        toggle.textContent = '−'  // minus sign
+        toggle.addEventListener('click', () => this.togglePanel())
+        this.element.appendChild(toggle)
+        this.toggleButton = toggle
+    }
+
+    togglePanel() {
+        this.isOpen = !this.isOpen
+        this.toggleButton.textContent = this.isOpen ? '−' : '+'
+        this.element.querySelectorAll('.panel-item').forEach(item => {
+            item.style.display = this.isOpen ? 'block' : 'none'
+        })
+    }
+
+    addComponent(component) {
+        const wrapper = document.createElement('div')
+        wrapper.className = 'panel-item'
+        wrapper.appendChild(component.element)
+        this.element.appendChild(wrapper)
+    }
+}
+
 class Button extends UIComponent {
     constructor({ text, onClick, styles }) {
         const button = document.createElement('button')
@@ -121,10 +177,10 @@ class SentencePanel extends UIComponent {
         })
     }
 
-    updateSentences(sentencesSet) {
+updateSentences(sentences) {
         this.element.innerHTML = ''
 
-        if (sentencesSet.size === 0) {
+        if (sentences.size === 0) {
             this.element.textContent = 'No buildable sentences found'
             return
         }
@@ -135,14 +191,28 @@ class SentencePanel extends UIComponent {
             padding: '0'
         })
 
-        sentencesSet.forEach(sentence => {
+        sentences.forEach(sentence => {
             const item = document.createElement('li')
             Object.assign(item.style, {
-                marginBottom: '8px',
-                padding: '4px',
-                borderBottom: '1px solid #eee'
+                marginBottom: '12px',
+                padding: '8px',
+                borderBottom: '1px solid #eee',
+                fontSize: '14px'
             })
-            item.textContent = sentence
+
+            // Create pinyin line
+            const pinyinDiv = document.createElement('div')
+            pinyinDiv.style.color = '#666'
+            pinyinDiv.style.marginBottom = '4px'
+            pinyinDiv.textContent = sentence.pinyinArray.join(' ')
+
+            // Create characters line
+            const charsDiv = document.createElement('div')
+            charsDiv.style.fontSize = '16px'
+            charsDiv.textContent = sentence.characters
+
+            item.appendChild(pinyinDiv)
+            item.appendChild(charsDiv)
             list.appendChild(item)
         })
 
@@ -182,9 +252,10 @@ class CharacterProcessor {
 
 // Sentence Domain
 class Sentence {
-    constructor(id, characters) {
+    constructor(id, characters, pinyinArray) {
         this.id = id
         this.characters = characters
+        this.pinyinArray = pinyinArray
     }
 
     isConstructibleFrom(characterSet) {
@@ -194,12 +265,31 @@ class Sentence {
 }
 
 class SentenceParser {
-    parse(sentenceElement) {
-        const chars = Array.from(sentenceElement.querySelectorAll('.cnchar'))
-            .map(char => char.textContent.trim())
-            .join('')
+  parse(sentenceElement) {
+        const chars = []
+        const pinyinArray = []
+        // Get all single character blocks
+        const blocks = sentenceElement.querySelectorAll('.singlebk')
+        blocks.forEach(block => {
+            // Extract character
+            const charElement = block.querySelector('.cnchar')
+            if (charElement) {
+                chars.push(charElement.textContent.trim())
+            }
+            // Extract pinyin
+            const pinyinElements = block.querySelectorAll('.pinyin')
+            pinyinElements.forEach(pinyin => {
+                if (pinyin.textContent.trim()) {
+                    pinyinArray.push(pinyin.textContent.trim())
+                }
+            })
+        })
 
-        return new Sentence(sentenceElement.id, chars)
+        return new Sentence(
+            sentenceElement.id,
+            chars.join(''),
+            pinyinArray
+        )
     }
 }
 
@@ -429,7 +519,7 @@ class PurpleCultureApp {
         await this.pageLoader.loadPages(this.currentWord, this.handlePageLoaded)
     }
 
-    processSentences() {
+   processSentences() {
         const characterSet = CharacterProcessor.parseCharacterList(this.userCharacters)
         const sentenceElements = document.querySelectorAll('.sc.samplesen')
 
@@ -445,16 +535,15 @@ class PurpleCultureApp {
             return sentence
         })
 
-
         const buildableSentences = this.sentences
             .filter(s => s.isConstructibleFrom(characterSet))
 
-
-        const buildableSentencesSet = new Set(buildableSentences.map(s => s.characters))
+        const buildableSentencesSet = new Set(buildableSentences)
 
         this.uiManager.updateSentenceCount(buildableSentencesSet.size)
         this.uiManager.updateBuildableSentences(buildableSentencesSet)
     }
+
 
     updateDisplay() {
         const minMax = CharacterProcessor.findMinMaxSentenceRowNum()
