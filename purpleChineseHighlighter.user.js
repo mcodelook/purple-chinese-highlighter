@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PurpleCulture Sentences Highlighter
 // @namespace    http://tampermonkey.net/
-// @version      2025-02-05
+// @version      2024-12-22
 // @description  Find and highlight Chinese sentences based on character sets
 // @author       https://github.com/mcodelook
 // @match        https://www.purpleculture.net/sample_sentences/*
@@ -177,10 +177,10 @@ class SentencePanel extends UIComponent {
         })
     }
 
-updateSentences(sentences) {
+    updateSentences(sentences) {
         this.element.innerHTML = ''
 
-        if (sentences.size === 0) {
+        if (sentences.length === 0) {
             this.element.textContent = 'No buildable sentences found'
             return
         }
@@ -194,23 +194,29 @@ updateSentences(sentences) {
         sentences.forEach(sentence => {
             const item = document.createElement('li')
             Object.assign(item.style, {
-                marginBottom: '12px',
+                marginBottom: '16px',
                 padding: '8px',
                 borderBottom: '1px solid #eee',
-                fontSize: '14px'
+                lineHeight: '1.5'
             })
 
-            // Create pinyin line
+            // Create and style pinyin div
             const pinyinDiv = document.createElement('div')
-            pinyinDiv.style.color = '#666'
-            pinyinDiv.style.marginBottom = '4px'
-            pinyinDiv.textContent = sentence.pinyinArray.join(' ')
+            Object.assign(pinyinDiv.style, {
+                fontSize: '0.9em',
+                color: '#666',
+                marginBottom: '4px'
+            })
+            pinyinDiv.textContent = sentence.pinyin
 
-            // Create characters line
+            // Create and style characters div
             const charsDiv = document.createElement('div')
-            charsDiv.style.fontSize = '16px'
+            Object.assign(charsDiv.style, {
+                fontSize: '1.1em'
+            })
             charsDiv.textContent = sentence.characters
 
+            // Append both elements to the list item
             item.appendChild(pinyinDiv)
             item.appendChild(charsDiv)
             list.appendChild(item)
@@ -252,10 +258,10 @@ class CharacterProcessor {
 
 // Sentence Domain
 class Sentence {
-    constructor(id, characters, pinyinArray) {
+    constructor(id, characters, pinyins) {
         this.id = id
         this.characters = characters
-        this.pinyinArray = pinyinArray
+        this.pinyin = pinyins
     }
 
     isConstructibleFrom(characterSet) {
@@ -265,31 +271,42 @@ class Sentence {
 }
 
 class SentenceParser {
-  parse(sentenceElement) {
-        const chars = []
-        const pinyinArray = []
-        // Get all single character blocks
+    parse(sentenceElement) {
+        // Get all blocks (singlebk spans)
         const blocks = sentenceElement.querySelectorAll('.singlebk')
-        blocks.forEach(block => {
-            // Extract character
-            const charElement = block.querySelector('.cnchar')
-            if (charElement) {
-                chars.push(charElement.textContent.trim())
-            }
-            // Extract pinyin
+
+        // Process each block and join with spaces
+        const processedBlocks = Array.from(blocks).map(block => {
+            // Get pinyin for this block
             const pinyinElements = block.querySelectorAll('.pinyin')
-            pinyinElements.forEach(pinyin => {
-                if (pinyin.textContent.trim()) {
-                    pinyinArray.push(pinyin.textContent.trim())
-                }
-            })
+            const blockPinyin = Array.from(pinyinElements)
+                .map(pinyin => pinyin.textContent.trim())
+                .filter(text => text.length > 0)
+                .join(' ')
+
+            // Get characters for this block
+            const charElements = block.querySelectorAll('.cnchar')
+            const blockChars = Array.from(charElements)
+                .map(char => char.textContent.trim())
+                .join('')
+
+            return {
+                pinyin: blockPinyin,
+                chars: blockChars
+            }
         })
 
-        return new Sentence(
-            sentenceElement.id,
-            chars.join(''),
-            pinyinArray
-        )
+        // Join blocks with proper spacing
+        const chars = processedBlocks
+            .map(block => block.chars)
+            .join(' ')
+
+        const pinyin = processedBlocks
+            .map(block => block.pinyin)
+            .filter(pinyin => pinyin.length > 0)  // Filter out empty pinyin blocks
+            .join('   ')  // Add extra spacing between pinyin blocks
+
+        return new Sentence(sentenceElement.id, chars, pinyin)
     }
 }
 
@@ -519,13 +536,12 @@ class PurpleCultureApp {
         await this.pageLoader.loadPages(this.currentWord, this.handlePageLoaded)
     }
 
-   processSentences() {
+    processSentences() {
         const characterSet = CharacterProcessor.parseCharacterList(this.userCharacters)
         const sentenceElements = document.querySelectorAll('.sc.samplesen')
 
         this.sentences = Array.from(sentenceElements).map(element => {
             this.sentenceHighlighter.highlightCharacters(element, characterSet)
-
             const sentence = this.sentenceParser.parse(element)
 
             if (sentence.isConstructibleFrom(characterSet)) {
@@ -538,10 +554,8 @@ class PurpleCultureApp {
         const buildableSentences = this.sentences
             .filter(s => s.isConstructibleFrom(characterSet))
 
-        const buildableSentencesSet = new Set(buildableSentences)
-
-        this.uiManager.updateSentenceCount(buildableSentencesSet.size)
-        this.uiManager.updateBuildableSentences(buildableSentencesSet)
+        this.uiManager.updateSentenceCount(buildableSentences.length)
+        this.uiManager.updateBuildableSentences(buildableSentences)
     }
 
 
