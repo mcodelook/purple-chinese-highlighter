@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         PurpleCulture Sentences Highlighter
 // @namespace    http://tampermonkey.net/
-// @version      2024-12-22
+// @version      2024-02-05
 // @description  Find and highlight Chinese sentences based on character sets
 // @author       https://github.com/mcodelook
 // @match        https://www.purpleculture.net/sample_sentences/*
@@ -15,7 +15,7 @@ const CONFIG = {
     LOAD_PAGES_COUNT: 4,
     REQUEST_DELAY_MS: 303,
     COLORS: {
-        MATCHING_SENTENCE: '#BCB',
+        MATCHING_SENTENCE: '#F3F3FF',
         MATCHING_CHARACTER: '#F9ff88'
     },
     CHINESE_PUNCTUATION: ['，', '。', '？', '！', '；', '：', '、', '（', '）', '《', '》', '“', '”', '‘', '’', '【', '】']
@@ -177,7 +177,7 @@ class SentencePanel extends UIComponent {
         })
     }
 
-    updateSentences(sentences) {
+ updateSentences(sentences) {
         this.element.innerHTML = ''
 
         if (sentences.length === 0) {
@@ -216,9 +216,14 @@ class SentencePanel extends UIComponent {
             })
             charsDiv.textContent = sentence.characters
 
+            const translationDiv = document.createElement('div')
+            translationDiv.textContent = sentence.translation
+
+
             // Append both elements to the list item
-            item.appendChild(pinyinDiv)
             item.appendChild(charsDiv)
+            item.appendChild(pinyinDiv)
+            item.appendChild(translationDiv)
             list.appendChild(item)
         })
 
@@ -258,10 +263,11 @@ class CharacterProcessor {
 
 // Sentence Domain
 class Sentence {
-    constructor(id, characters, pinyins) {
+    constructor(id, characters, pinyins, translation) {
         this.id = id
         this.characters = characters
         this.pinyin = pinyins
+        this.translation = translation
     }
 
     isConstructibleFrom(characterSet) {
@@ -271,9 +277,13 @@ class Sentence {
 }
 
 class SentenceParser {
-    parse(sentenceElement) {
+ parse(sentenceElement) {
         // Get all blocks (singlebk spans)
+     console.log(sentenceElement)
         const blocks = sentenceElement.querySelectorAll('.singlebk')
+        let translation = sentenceElement.querySelectorAll('.sample_en')
+        translation = translation[0].innerHTML
+        console.log(translation)
 
         // Process each block and join with spaces
         const processedBlocks = Array.from(blocks).map(block => {
@@ -306,7 +316,7 @@ class SentenceParser {
             .filter(pinyin => pinyin.length > 0)  // Filter out empty pinyin blocks
             .join('   ')  // Add extra spacing between pinyin blocks
 
-        return new Sentence(sentenceElement.id, chars, pinyin)
+        return new Sentence(sentenceElement.id, chars, pinyin, translation)
     }
 }
 
@@ -536,27 +546,27 @@ class PurpleCultureApp {
         await this.pageLoader.loadPages(this.currentWord, this.handlePageLoaded)
     }
 
-    processSentences() {
-        const characterSet = CharacterProcessor.parseCharacterList(this.userCharacters)
-        const sentenceElements = document.querySelectorAll('.sc.samplesen')
+processSentences() {
+    const characterSet = CharacterProcessor.parseCharacterList(this.userCharacters)
+    const sentenceElements = document.querySelectorAll('.sentence')
 
-        this.sentences = Array.from(sentenceElements).map(element => {
-            this.sentenceHighlighter.highlightCharacters(element, characterSet)
-            const sentence = this.sentenceParser.parse(element)
+    this.sentences = Array.from(sentenceElements).map(element => {
+        this.sentenceHighlighter.highlightCharacters(element, characterSet)
+        const sentence = this.sentenceParser.parse(element)
 
-            if (sentence.isConstructibleFrom(characterSet)) {
-                this.sentenceHighlighter.highlightSentence(element)
-            }
+        if (sentence.isConstructibleFrom(characterSet)) {
+            this.sentenceHighlighter.highlightSentence(element)
+        }
 
-            return sentence
-        })
+        return sentence
+    })
 
-        const buildableSentences = this.sentences
-            .filter(s => s.isConstructibleFrom(characterSet))
+    const buildableSentences = this.sentences
+        .filter(s => s.isConstructibleFrom(characterSet))
 
-        this.uiManager.updateSentenceCount(buildableSentences.length)
-        this.uiManager.updateBuildableSentences(buildableSentences)
-    }
+    this.uiManager.updateSentenceCount(buildableSentences.length)
+    this.uiManager.updateBuildableSentences(buildableSentences)
+}
 
 
     updateDisplay() {
